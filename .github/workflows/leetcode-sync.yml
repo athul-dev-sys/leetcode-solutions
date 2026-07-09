@@ -1,0 +1,43 @@
+name: Sync LeetCode submissions
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch LeetCode submissions
+        env:
+          LEETCODE_SESSION: ${{ secrets.LEETCODE_SESSION }}
+          LEETCODE_CSRF_TOKEN: ${{ secrets.LEETCODE_CSRF_TOKEN }}
+          LEETCODE_SYNC_STATUSES: all
+        run: python scripts/sync_leetcode.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "leetcode-sync-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .leetcode_sync_state.json
+          [ -d submissions ] && git add submissions
+          [ -d solutions ] && git add solutions
+          if git diff --cached --quiet; then
+            echo "No new LeetCode submissions to commit."
+          else
+            git commit -m "Sync LeetCode submissions"
+            git push
+          fi
