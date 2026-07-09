@@ -101,14 +101,21 @@ def allowed_statuses() -> set[str] | None:
 
 
 def request_json(url: str, session: str, csrf_token: str) -> dict[str, Any]:
+    base_url = os.getenv("LEETCODE_BASE_URL", "https://leetcode.com").rstrip("/")
     cookie = f"LEETCODE_SESSION={session}; csrftoken={csrf_token}"
     request = Request(
         url,
         headers={
             "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
             "Cookie": cookie,
-            "Referer": os.getenv("LEETCODE_BASE_URL", "https://leetcode.com"),
-            "User-Agent": "leetcode-github-sync/1.0",
+            "Origin": base_url,
+            "Referer": f"{base_url}/problemset/",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/126.0.0.0 Safari/537.36"
+            ),
             "X-CSRFToken": csrf_token,
         },
     )
@@ -117,6 +124,13 @@ def request_json(url: str, session: str, csrf_token: str) -> dict[str, Any]:
             return json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
+        if exc.code in {401, 403}:
+            raise SystemExit(
+                "LeetCode rejected the login cookies. Re-copy both GitHub secrets from the same logged-in "
+                "leetcode.com browser session: LEETCODE_SESSION must be the LEETCODE_SESSION cookie value, "
+                "and LEETCODE_CSRF_TOKEN must be the csrftoken cookie value. Do not include quotes, names, "
+                f"or semicolons. HTTP {exc.code}: {body[:500]}"
+            ) from exc
         raise SystemExit(f"LeetCode request failed with HTTP {exc.code}: {body[:500]}") from exc
     except URLError as exc:
         raise SystemExit(f"LeetCode request failed: {exc}") from exc
